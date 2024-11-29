@@ -1,0 +1,5 @@
+_target_: policy.ppo.PPOPolicy
+policy:
+  policy: "CnnPolicy"
+  learning_rate: 3e-4
+  verbose: 1

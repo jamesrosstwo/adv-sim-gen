@@ -1,0 +1,13 @@
+environment:
+  id: CarRacing-v3
+  render_mode: rgb_array
+  lap_complete_percent: 0.95
+  domain_randomize: false
+  continuous: true
+policy:
+  _target_: policy.ppo.PPOPolicy
+  policy:
+    policy: CnnPolicy
+    learning_rate: 0.0003
+name: train_ppo_baseline
+n_timesteps: 1000000
