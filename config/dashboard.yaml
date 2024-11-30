@@ -1,0 +1,5 @@
+defaults:
+  - environment: base
+name: "dashboard"
+
+ppo_path: "resources/ignaub-ppo-CarRacing-v2.zip"

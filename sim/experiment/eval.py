@@ -4,7 +4,7 @@ from omegaconf import DictConfig
 from stable_baselines3 import PPO
 
 from definitions import ROOT_PATH, RESOURCES_PATH
-from experiment import Experiment
+from sim.experiment.experiment import Experiment
 
 
 class EvaluateModelExperiment(Experiment):

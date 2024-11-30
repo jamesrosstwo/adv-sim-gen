@@ -7,15 +7,21 @@ import hydra
 from tqdm import tqdm
 
 from definitions import ROOT_PATH
-from experiment.rollout import RolloutExperiment
-from sim.experiment.experiment import BaseExperiment
+from sim.experiment.rollout import RolloutExperiment
 from models.vae import ConvVAE
 import torch.nn.functional as F
 
 
 class TrainVAEExperiment(RolloutExperiment):
-    def __init__(self, z_size: int = 32, batch_size: int = 100,
-                 learning_rate: float = 0.0001, kl_tolerance: float = 0.5, num_epochs: int = 10, *args, **kwargs):
+    def __init__(
+            self,
+            z_size: int = 32,
+            batch_size: int = 100,
+            learning_rate: float = 0.00007,
+            kl_tolerance: float = 0.5,
+            num_epochs: int = 200,
+            *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.z_size = z_size
         self.batch_size = batch_size
@@ -40,7 +46,7 @@ class TrainVAEExperiment(RolloutExperiment):
                 batch_obs /= 255.0
                 self.optimizer.zero_grad()
                 recon_x, mu, logvar = self._vae(batch_obs)
-                recon_loss = F.mse_loss(recon_x, batch_obs, reduction='sum')
+                recon_loss = F.mse_loss(recon_x, batch_obs)
                 kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
                 loss = recon_loss + self.kl_tolerance * kl_loss
                 loss.backward()
