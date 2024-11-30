@@ -1,4 +1,4 @@
-id: "CarRacing-v3"
+id: "CarRacing-v2"
 render_mode: None
 lap_complete_percent: 0.95
 domain_randomize: false

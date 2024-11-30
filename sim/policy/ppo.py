@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from hydra.utils import instantiate
 from omegaconf import DictConfig
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -9,7 +10,7 @@ class PPOPolicy(nn.Module):
 
     @classmethod
     def from_conf(cls, policy: DictConfig, env: DummyVecEnv):
-        return cls(PPO(**policy, env=env))
+        return cls(ppo=instantiate(policy, env=env))
 
     @property
     def sb3_ppo(self):

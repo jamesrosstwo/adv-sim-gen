@@ -1,6 +1,5 @@
 defaults:
-  - env: base
-  - policy: gail
+  - environment: base
 
 name: "train_gail_from_ppo"
-expert_checkpoint: "out/train_ppo_baseline/2024-11-29_17-45-23"
+expert_checkpoint: "out/train_ppo_baseline/2024-11-29_19-54-45"

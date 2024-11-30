@@ -3,5 +3,5 @@ defaults:
   - policy: ppo
 
 name: "train_ppo_baseline"
-n_timesteps: 1_000_000
+n_timesteps: 100_000
 

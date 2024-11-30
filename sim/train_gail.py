@@ -1,9 +1,9 @@
 import hydra
 import numpy as np
+import torch
 from omegaconf import DictConfig
 from stable_baselines3 import PPO
 from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.ppo import CnnPolicy
 
 from definitions import ROOT_PATH, SEED
 from experiment import Experiment
@@ -24,16 +24,10 @@ class TrainGAILExperiment(Experiment):
             **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self._expert: PPOPolicy = PPOPolicy(PPO.load(ROOT_PATH / expert_checkpoint))
+        self._expert: PPOPolicy = PPOPolicy(PPO.load(ROOT_PATH / expert_checkpoint / "ppo_car_racing.zip"))
         self._n_timesteps = n_timesteps
 
     def run(self):
-        rollouts = rollout.rollout(
-            self._expert,
-            self._env,
-            rollout.make_sample_until(min_timesteps=None, min_episodes=60),
-            rng=np.random.default_rng(SEED),
-        )
 
         # Create PPO learner with updated hyperparameters
         learner = PPO(
@@ -41,10 +35,11 @@ class TrainGAILExperiment(Experiment):
             policy="CnnPolicy",  # Suitable for CarRacing's image observations
             batch_size=128,  # Increased for better gradient estimation
             ent_coef=0.01,  # Higher entropy for better exploration
-            learning_rate=0.0001,  # Lower learning rate for stable updates
+            learning_rate=1e-4,  # Lower learning rate for stable updates
             gamma=0.99,  # Increased for long-term credit assignment
             n_epochs=10,  # More epochs for better PPO training
             seed=SEED,
+            verbose=1
         )
 
         # Create reward network for GAIL
@@ -52,6 +47,13 @@ class TrainGAILExperiment(Experiment):
             observation_space=self._env.observation_space,
             action_space=self._env.action_space,
             normalize_input_layer=RunningNorm,
+        )
+
+        rollouts = rollout.rollout(
+            self._expert.sb3_ppo,
+            learner.get_env(),
+            rollout.make_sample_until(min_timesteps=None, min_episodes=60),
+            rng=np.random.default_rng(SEED),
         )
 
         # Define GAIL trainer with updated hyperparameters
@@ -63,6 +65,8 @@ class TrainGAILExperiment(Experiment):
             venv=self._env,
             gen_algo=learner,
             reward_net=reward_net,
+            init_tensorboard = True,
+            init_tensorboard_graph = True,
         )
 
         # Set the seed for the environment
@@ -95,8 +99,10 @@ class TrainGAILExperiment(Experiment):
         print("mean reward after training:", np.mean(learner_rewards_after_training))
         print("mean reward before training:", np.mean(learner_rewards_before_training))
 
+        torch.save(reward_net.state_dict(), str(self._out_path / "gail_reward_net.pth"))
 
-@hydra.main(config_name="train_baseline", config_path=str(ROOT_PATH / "config"))
+
+@hydra.main(config_name="train_gail", config_path=str(ROOT_PATH / "config"))
 def main(cfg: DictConfig):
     exp = TrainGAILExperiment(**cfg)
     exp.run()

@@ -1,5 +1,4 @@
-_target_: policy.ppo.PPOPolicy
-policy:
-  policy: "CnnPolicy"
-  learning_rate: 3e-4
-  verbose: 1
+_target_: stable_baselines3.PPO
+policy: "CnnPolicy"
+learning_rate: 1e-4
+verbose: 1
