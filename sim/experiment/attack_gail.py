@@ -1,10 +1,14 @@
 import torch
+from hydra.utils import instantiate
+from omegaconf import DictConfig
 from stable_baselines3 import PPO
 from imitation.rewards.reward_nets import BasicRewardNet
 from imitation.util.networks import RunningNorm
 
 from definitions import ROOT_PATH
-from experiment import Experiment
+from sim.experiment.experiment import BaseExperiment
+from perturbation.perturbation import Perturbation
+
 
 # Idea 0: Train a VAE purely on reconstruction, and freeze the encoder. Reuse this encoder for all subsequent ideas.
 
@@ -16,27 +20,23 @@ from experiment import Experiment
 
 
 
-
-class AttackExperiment(Experiment):
+class AttackExperiment(BaseExperiment):
     def __init__(
             self,
             learner_path: str,
+            perturbation: DictConfig,
             *args,
             **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self._learner = PPO.load("gail_learner_policy", env=self._env)
-        self._reward_net = BasicRewardNet(
-            observation_space=self._env.observation_space,
-            action_space=self._env.action_space,
-            normalize_input_layer=RunningNorm,
-        )
-        self._reward_net.load_state_dict(torch.load(str(ROOT_PATH / learner_path)))
+        self._perturbation: Perturbation = instantiate(perturbation)
+
 
     def run(self):
         obs = self._env.reset()
         done = False
         while not done:
+            perturbed = self._perturbation(obs)
             action, _ = self._learner.predict(obs)
             obs, reward, done, info = self._env.step(action)
             self._env.render()

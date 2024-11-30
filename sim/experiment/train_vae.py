@@ -6,11 +6,13 @@ from pathlib import Path
 from imitation.data import serialize
 from omegaconf import DictConfig
 import hydra
+from tqdm import tqdm
 
 from dataset.traj import TrajectoryDataset
 from definitions import ROOT_PATH
 from sim.experiment.experiment import BaseExperiment
 from models.vae import ConvVAE
+import torch.nn.functional as F
 
 
 class TrainVAEExperiment(BaseExperiment):
@@ -24,15 +26,10 @@ class TrainVAEExperiment(BaseExperiment):
         self.num_epochs = num_epochs
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Initialize VAE model
         self._vae = ConvVAE(z_size=z_size).to(self.device)
-
-        # Load dataset
         self._dataset: TrajectoryDataset = TrajectoryDataset(serialize.load(rollouts_path))
-
-        # Optimizer and loss components
         self.optimizer = optim.Adam(self._vae.parameters(), lr=learning_rate)
-        self.reconstruction_loss_fn = nn.MSELoss(reduction='sum')  # Assume reconstruction loss is MSE
+        self.reconstruction_loss_fn = nn.MSELoss(reduction='sum')
 
     def run(self):
         self._vae.train()
@@ -42,12 +39,20 @@ class TrainVAEExperiment(BaseExperiment):
             total_kl_loss = 0.0
             dataloader = DataLoader(self._dataset, self.batch_size, shuffle=True)
 
-            # Example of iterating over the data loader
-            for batch_obs, batch_acts in dataloader:
-                # Convert numpy arrays to tensors if necessary
-                batch_obs = torch.tensor(batch_obs)
-                batch_acts = torch.tensor(batch_acts)
-                # Your training code here
+            for batch_obs, batch_acts in tqdm(dataloader):
+                batch_obs = torch.tensor(batch_obs).float().to(self.device)
+                batch_obs /= 255.0
+                self.optimizer.zero_grad()
+                recon_x, mu, logvar = self._vae(batch_obs)
+                recon_loss = F.mse_loss(recon_x, batch_obs, reduction='sum')
+                kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+                loss = recon_loss + self.kl_tolerance * kl_loss
+                loss.backward()
+                self.optimizer.step()
+
+                total_loss += loss.item()
+                total_recon_loss += recon_loss.item()
+                total_kl_loss += kl_loss.item()
 
             # Logging
             print(

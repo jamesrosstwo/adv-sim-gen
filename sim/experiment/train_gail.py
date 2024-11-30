@@ -11,14 +11,11 @@ import torch
 
 from definitions import ROOT_PATH, SEED
 from experiment.experiment import Experiment
-from models.ppo import PPOPolicy
-
 from imitation.algorithms.adversarial.gail import GAIL
 from imitation.data import rollout
-from imitation.data import serialize  # For saving and loading rollouts
+from imitation.data import serialize
 from imitation.rewards.reward_nets import BasicRewardNet
 from imitation.util.networks import RunningNorm
-from huggingface_sb3 import load_from_hub
 
 
 class TrainGAILExperiment(Experiment):

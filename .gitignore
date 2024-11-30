@@ -2,6 +2,7 @@ experiments/
 data/
 out/
 sim/outputs/
+sim/experiment/outputs/
 resources/
 
 # Byte-compiled / optimized / DLL files
