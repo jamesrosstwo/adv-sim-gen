@@ -2,21 +2,19 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from pathlib import Path
-from imitation.data import serialize
 from omegaconf import DictConfig
 import hydra
 from tqdm import tqdm
 
-from dataset.traj import TrajectoryDataset
 from definitions import ROOT_PATH
+from experiment.rollout import RolloutExperiment
 from sim.experiment.experiment import BaseExperiment
 from models.vae import ConvVAE
 import torch.nn.functional as F
 
 
-class TrainVAEExperiment(BaseExperiment):
-    def __init__(self, rollouts_path: Path, z_size: int = 32, batch_size: int = 100,
+class TrainVAEExperiment(RolloutExperiment):
+    def __init__(self, z_size: int = 32, batch_size: int = 100,
                  learning_rate: float = 0.0001, kl_tolerance: float = 0.5, num_epochs: int = 10, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.z_size = z_size
@@ -24,10 +22,8 @@ class TrainVAEExperiment(BaseExperiment):
         self.learning_rate = learning_rate
         self.kl_tolerance = kl_tolerance
         self.num_epochs = num_epochs
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self._vae = ConvVAE(z_size=z_size).to(self.device)
-        self._dataset: TrajectoryDataset = TrajectoryDataset(serialize.load(rollouts_path))
         self.optimizer = optim.Adam(self._vae.parameters(), lr=learning_rate)
         self.reconstruction_loss_fn = nn.MSELoss(reduction='sum')
 

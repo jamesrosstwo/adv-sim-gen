@@ -13,9 +13,8 @@ class VAEFramePerturbation(Perturbation):
         vae_state_dict = torch.load(str(state_path))
         self._vae.load_state_dict(vae_state_dict, strict=True)
         self._perturbation_strength = perturbation_strength
+        self._vae.encoder.requires_grad_(False)
 
-        for param in self._vae.encoder.parameters():
-            param.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         mask = self.get_mask(x)
@@ -31,9 +30,7 @@ class VAELatentPerturation(Perturbation):
         vae_state_dict = torch.load(str(state_path))
         self._vae.load_state_dict(vae_state_dict, strict=True)
         self._perturbation_strength = perturbation_strength
-
-        for param in self._vae.encoder.parameters():
-            param.requires_grad = False
+        self._vae.encoder.requires_grad_(False)
 
         self.latent_mlp = nn.Sequential(
             nn.Linear(z_size, z_size),
