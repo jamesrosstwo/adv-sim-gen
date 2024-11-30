@@ -6,9 +6,18 @@ from stable_baselines3.common.vec_env import DummyVecEnv
 from torch import nn
 
 class PPOPolicy(nn.Module):
-    def __init__(self, policy: DictConfig, env: DummyVecEnv):
+
+    @classmethod
+    def from_conf(cls, policy: DictConfig, env: DummyVecEnv):
+        return cls(PPO(**policy, env=env))
+
+    @property
+    def sb3_ppo(self):
+        return self._sb3_ppo
+
+    def __init__(self, ppo: PPO):
         super().__init__()
-        self._sb3_ppo = PPO(**policy, env=env)
+        self._sb3_ppo = ppo
         self.extractor = self._sb3_ppo.policy.mlp_extractor
         self.policy_net = self._sb3_ppo.policy.mlp_extractor.policy_net
         self.action_net = self._sb3_ppo.policy.action_net

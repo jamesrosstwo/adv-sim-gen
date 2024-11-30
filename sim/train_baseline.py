@@ -15,7 +15,7 @@ class TrainBaselineExperiment(Experiment):
             **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self._ppo: PPOPolicy = instantiate(policy, env=self._env)
+        self._ppo: PPOPolicy = PPOPolicy.from_conf(policy, env=self._env)
         self._n_timesteps = n_timesteps
 
     def run(self):
