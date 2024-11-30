@@ -1,18 +1,10 @@
 from abc import ABC, abstractmethod
 
 import torch
+from torch import nn
 
 
-class ObservationPerturbation(ABC):
+class ObservationPerturbation(nn.Module, ABC):
     @abstractmethod
-    def perturb(self, observation: torch.Tensor) -> torch.Tensor:
-        """
-        Abstract method to perturb the observation.
-
-        Args:
-            observation (Any): The original observation from the environment.
-
-        Returns:
-            Any: The perturbed observation.
-        """
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         pass

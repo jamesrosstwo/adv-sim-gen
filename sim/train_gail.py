@@ -1,5 +1,6 @@
 import hydra
 import numpy as np
+from imitation.policies.serialize import load_policy
 from omegaconf import DictConfig
 from stable_baselines3 import PPO
 from stable_baselines3.common.evaluation import evaluate_policy
@@ -17,6 +18,7 @@ from imitation.data import rollout
 from imitation.data import serialize  # For saving and loading rollouts
 from imitation.rewards.reward_nets import BasicRewardNet
 from imitation.util.networks import RunningNorm
+from huggingface_sb3 import load_from_hub
 
 
 class TrainGAILExperiment(Experiment):
@@ -28,7 +30,15 @@ class TrainGAILExperiment(Experiment):
             **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self._expert: PPOPolicy = PPOPolicy(PPO.load(ROOT_PATH / expert_checkpoint / "ppo_car_racing.zip"))
+
+        expert = load_policy(
+            "ppo-huggingface",
+            organization = "igpaub",
+            env_name = "ppo-CarRacing-v2",
+            venv = self._env,
+        )
+        # checkpoint_path = str(ROOT_PATH / expert_checkpoint / "ppo_car_racing.zip")
+        # self._expert: PPOPolicy = PPOPolicy(PPO.load(checkpoint_path))
         self._n_timesteps = n_timesteps
         self._rollouts_path = self._out_path / "expert_rollouts.pkl"
 
