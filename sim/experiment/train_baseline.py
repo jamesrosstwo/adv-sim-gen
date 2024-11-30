@@ -3,7 +3,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 from definitions import ROOT_PATH
 from experiment import Experiment
-from policy.ppo import PPOPolicy
+from models.ppo import PPOPolicy
 
 
 class TrainBaselineExperiment(Experiment):

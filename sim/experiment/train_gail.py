@@ -10,8 +10,8 @@ import os
 import torch
 
 from definitions import ROOT_PATH, SEED
-from experiment import Experiment
-from policy.ppo import PPOPolicy
+from experiment.experiment import Experiment
+from models.ppo import PPOPolicy
 
 from imitation.algorithms.adversarial.gail import GAIL
 from imitation.data import rollout
@@ -24,23 +24,22 @@ from huggingface_sb3 import load_from_hub
 class TrainGAILExperiment(Experiment):
     def __init__(
             self,
-            expert_checkpoint: str,
+            # expert_checkpoint: str,
             n_timesteps: int = 1_000_000,
             *args,
             **kwargs
     ):
         super().__init__(*args, **kwargs)
 
-        expert = load_policy(
+        self._expert = load_policy(
             "ppo-huggingface",
             organization = "igpaub",
-            env_name = "ppo-CarRacing-v2",
+            env_name = "CarRacing-v2",
             venv = self._env,
         )
         # checkpoint_path = str(ROOT_PATH / expert_checkpoint / "ppo_car_racing.zip")
-        # self._expert: PPOPolicy = PPOPolicy(PPO.load(checkpoint_path))
         self._n_timesteps = n_timesteps
-        self._rollouts_path = self._out_path / "expert_rollouts.pkl"
+        self._rollouts_path = self._out_path / "expert_rollouts"
 
 
     def run(self):
@@ -65,10 +64,11 @@ class TrainGAILExperiment(Experiment):
         else:
             print("Generating expert rollouts...")
             rollouts = rollout.rollout(
-                self._expert.sb3_ppo,
+                self._expert,
                 learner.get_env(),
                 rollout.make_sample_until(min_timesteps=None, min_episodes=60),
                 rng=np.random.default_rng(SEED),
+                unwrap=False,
             )
             # Save rollouts to disk
             print("Saving expert rollouts to file...")

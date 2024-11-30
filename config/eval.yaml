@@ -1,4 +1,4 @@
 defaults:
   - environment: base
 
-name: "train_gail_from_ppo"
+name: "evaluate_model"

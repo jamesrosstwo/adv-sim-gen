@@ -1,16 +1,23 @@
 import torch
-from omegaconf import DictConfig
 from stable_baselines3 import PPO
 from imitation.rewards.reward_nets import BasicRewardNet
 from imitation.util.networks import RunningNorm
-import gymnasium as gym
 
 from definitions import ROOT_PATH
 from experiment import Experiment
-from policy.ppo import PPOPolicy
+
+# Idea 0: Train a VAE purely on reconstruction, and freeze the encoder. Reuse this encoder for all subsequent ideas.
+
+# Idea 1: train a VAE that directly attacks the policy. in: image, VAE predicts a masked perturbation added to image.
+#   Loss is difference between GT action and the estimated action by passed model
+
+# Idea 2: Train a VAE that estimates the next frame. Takes in action and observation, loss is pixel loss between pred and actual frame?
+# Or maybe loss is the difference between encodings?
 
 
-class TrainBaselineExperiment(Experiment):
+
+
+class AttackExperiment(Experiment):
     def __init__(
             self,
             learner_path: str,

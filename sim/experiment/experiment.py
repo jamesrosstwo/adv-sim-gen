@@ -11,13 +11,22 @@ def make_env(env_config: DictConfig) -> DummyVecEnv:
     return DummyVecEnv([lambda: gymnasium.make(**env_config)])
 
 
-class Experiment(ABC):
-    def __init__(self, name: str, environment: DictConfig):
+class BaseExperiment(ABC):
+    def __init__(self, name: str):
         self._name = name
         self._date_string = get_date_string()
         self._out_path = OUT_PATH / self._name / self._date_string
         self._out_path.mkdir(parents=True)
         print(f"Created experiment diretory at {self._out_path}")
+
+    @abstractmethod
+    def run(self):
+        raise NotImplementedError()
+
+
+class Experiment(BaseExperiment, ABC):
+    def __init__(self, name: str, environment: DictConfig):
+        super().__init__(name)
         self._env = make_env(environment)
 
     @abstractmethod

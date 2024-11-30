@@ -1,5 +1,5 @@
 defaults:
-  - environment: base
+  - environment: random
   - policy: ppo
 
 name: "train_ppo_baseline"
