@@ -31,7 +31,7 @@ class EvaluateModelExperiment(Experiment):
         max_steps_per_episode = 1000
 
         for episode in range(num_episodes):
-            obs = self._env.reset()
+            obs = self._reset_env()
             done = False
             episode_reward = 0
             step_count = 0

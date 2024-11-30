@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import gymnasium
+import numpy as np
 from omegaconf import DictConfig
 from stable_baselines3.common.vec_env import DummyVecEnv
 
@@ -28,6 +29,12 @@ class Experiment(BaseExperiment, ABC):
     def __init__(self, name: str, environment: DictConfig):
         super().__init__(name)
         self._env = make_env(environment)
+
+    def _reset_env(self):
+        obs = self._env.reset()
+        for i in range(50):
+            obs, _, _, _ = self._env.step(np.zeros((1, 3)))
+        return obs
 
     @abstractmethod
     def run(self):
