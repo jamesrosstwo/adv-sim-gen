@@ -9,4 +9,4 @@ def get_mask(obs: torch.Tensor) -> torch.Tensor:
     """
     base_mask = torch.ones_like(obs[:, 0, :, :]).bool()
     base_mask[:, 84:, :] = 0
-    return base_mask
+    return base_mask.cuda()

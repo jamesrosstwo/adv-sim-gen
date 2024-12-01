@@ -15,7 +15,8 @@ from models.ppo import PPOPolicy
 from models.vae import ConvVAE
 from models.vqvae import VQVAE
 from perturbation.perturbation import Perturbation
-from perturbation.vae import VAEFramePerturbation
+from perturbation.vae import VAEFramePerturbation, VAELatentPerturbation
+from perturbation.vqvae import VQVAEFramePerturbation, VQVAELatentPerturbation
 
 
 class Dashboard(Experiment):
@@ -36,6 +37,20 @@ class Dashboard(Experiment):
         self._reconstruction_methods = {
             "VQ-VAE": self._vqvae_recons,
             "VAE": self._vae_recons,
+        }
+
+        self._attack_methods = {
+            "VQ-VAE Frame Attack": VQVAEFramePerturbation,
+            "VQ-VAE Latent Space Attack": VQVAELatentPerturbation,
+            "VAE Frame Attack": VAEFramePerturbation,
+            "VAE Latent Attack": VAELatentPerturbation
+        }
+
+        self._attack_state_paths = {
+            "VQ-VAE Frame Attack": self._vqvae_path,
+            "VQ-VAE Latent Space Attack": self._vqvae_path,
+            "VAE Frame Attack": self._vae_path,
+            "VAE Latent Attack": self._vae_path
         }
 
         self._gail = None
@@ -61,7 +76,8 @@ class Dashboard(Experiment):
                         self.timestep_output = gr.Number(value=timestep, label="Timestep")
                         self.reward_output = gr.Number(value=episode_reward, label="Episode Reward")
                         self.timestep_k_slider = gr.Slider(1, 100, step=1, value=20, label="Timestep Size")
-                        self.timestep_k_slider.release(self._on_slider_change, inputs=[self.timestep_k_slider, env_state],
+                        self.timestep_k_slider.release(self._on_slider_change,
+                                                       inputs=[self.timestep_k_slider, env_state],
                                                        outputs=env_state,
                                                        api_name="predict")
 
@@ -70,38 +86,46 @@ class Dashboard(Experiment):
 
                     with gr.Column(scale=2, min_width=300):
                         with gr.Row():
-                            self.base_image = self._construct_gr_image(obs, "True Observation", height=600, width=600)
+                            self.base_image = self._construct_gr_image(obs, "True Observation")
 
-                with gr.Tab("Reconstructions"):
-                    with gr.Row():
-                        self.vae_recons_image = self._construct_gr_image(self._vae_recons(obs), "VAE Reconstruction")
-                        self.vqvae_recons_image = self._construct_gr_image(self._vqvae_recons(obs), "VQ-VAE Reconstruction")
-
+                with gr.Tab("VAE"):
+                    self.vae_recons_image = self._construct_gr_image(self._vae_recons(obs), "VAE Reconstruction")
+                with gr.Tab("VQ-VAE"):
+                    self.vqvae_recons_image = self._construct_gr_image(self._vqvae_recons(obs), "VQ-VAE Reconstruction")
+                with gr.Tab("Perturbations"):
                     with gr.Row():
                         with gr.Column(scale=2, min_width=300):
-                            self.recons_selection = gr.Dropdown(["VAE", "VQ-VAE"], value=0, label="Reconstruction Method")
+                            self.recons_selection = gr.Dropdown(["VQ-VAE", "VAE"], value=0,
+                                                                label="Reconstruction Method")
 
                         with gr.Column(scale=1, min_width=300):
                             gen_button = gr.Button(f"Generate Perturbations", size="lg")
                             # gen_button.click(self._generate_perturbations, [env_state, gen_button], self.vae_recons_image)
 
-                with gr.Tab("Perturbations"):
-                    pass
-
             with gr.Tab("Adversarial Learning"):
-                # adversarial
+                with gr.Row():
+                    keys = list(self._attack_methods.keys())
+                    attack_selection = gr.Dropdown(keys, value=keys[0])
 
-                self._frame_perturbation = VAEFramePerturbation(self._vae_path, z_size=self._vae_z_size).cuda()
-                obs_p = self._frame_perturbation.postproc_obs(
-                    self.attack_frame(self._ppo, obs, self._frame_perturbation))
+                    @gr.render(inputs=[attack_selection, env_state])
+                    def discover_attack(attack_type, state):
+                        prog = gr.Progress()
+                        o = state["obs"]
+                        attack_method = self._attack_methods[attack_type]
+                        state_path = self._attack_state_paths[attack_type]
+                        p: Perturbation = attack_method(state_path).cuda()
+                        for i, loss in prog.tqdm(p.fit(self._ppo, o)):
+                            print(i, loss)
+                        perturbed = p(p.preproc_obs(o))
+                        self._construct_gr_image(p.postproc_obs(perturbed), label="Discovered Attack")
+                    # self.delta_img = self._construct_gr_image(delta_img, "|Adversarial - True|")
 
                 # delta_img = np.abs(obs_p - obs)  # Take the absolute difference for visualization
                 # print(delta_img.min(), delta_img.max())
                 # delta_img = delta_img / delta_img.max()  # Normalize delta to [0, 1] for display
 
-                self.latent_p_image = self._construct_gr_image(obs_p, "Latent Space Perturbation")
-                # self.delta_img = self._construct_gr_image(delta_img, "|Adversarial - True|")
-
+            with gr.Tab("Augmented Policy Learning"):
+                gr.Label("Coming Soon!")
 
             state_change_comps = [
                 self.base_image,
@@ -134,7 +158,7 @@ class Dashboard(Experiment):
     def _on_state_change(self, state):
         obs = state["obs"]
         return [
-            self._image_from_obs(obs, width=800, height=800),
+            self._image_from_obs(obs),
             self._image_from_obs(self._vae_recons(obs)),
             self._image_from_obs(self._vqvae_recons(obs)),
             state['timestep'],
@@ -159,15 +183,14 @@ class Dashboard(Experiment):
 
         return image_resized
 
-    def next_frame(self, state, policy, progress=gr.Progress()):
+    def next_frame(self, state, policy):
         done = False
         obs = state['obs']
         timestep = state['timestep']
         episode_reward = state['episode_reward']
 
-        progress(0, desc="Starting")
-        for i in progress.tqdm(range(state["timestep_size"])):
-            action, _ = policy.predict(obs, deterministic=True)
+        for i in range(state["timestep_size"]):
+            action, _ = policy.predict(obs, deterministic=False)
             print("taking action {}".format(action))
             result = self._env.step(action)
             obs, reward, done, info = result
@@ -182,11 +205,6 @@ class Dashboard(Experiment):
         state['episode_reward'] = episode_reward
         state['done'] = done
         return state
-
-    def attack_frame(self, policy, obs, perturbation: Perturbation):
-        for i, loss in perturbation.fit(policy, obs):
-            print(i, loss)
-        return perturbation(perturbation.preproc_obs(obs))
 
     def run(self):
         pass  # this is dumb

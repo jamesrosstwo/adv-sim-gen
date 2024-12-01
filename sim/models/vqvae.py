@@ -84,7 +84,7 @@ class VectorQuantizer(nn.Module):
         return quantized, loss
 
 class VQVAE(nn.Module):
-    def __init__(self, num_embeddings=64, embedding_dim=32, commitment_cost=0.25):
+    def __init__(self, num_embeddings=64, embedding_dim=16, commitment_cost=0.25):
         super(VQVAE, self).__init__()
         self.encoder = Encoder()
         self.decoder = Decoder()

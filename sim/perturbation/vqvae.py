@@ -23,7 +23,7 @@ class VQVAEFramePerturbation(Perturbation):
         self._vqvae.load_state_dict(vqvae_state_dict, strict=True)
         self._perturbation_strength = perturbation_strength
         self._vqvae.requires_grad_(False)
-        self.perturbation = nn.Parameter(torch.zeros(1, 3, 96, 96))
+        self.perturbation = nn.Parameter(torch.zeros(1, 3, 96, 96)).cuda()
 
     @property
     def vqvae(self):
@@ -33,8 +33,7 @@ class VQVAEFramePerturbation(Perturbation):
         perturbation = self.perturbation
         perturbation = self._normalize_perturbation(perturbation)
         mask = get_mask(x)
-        perturbation *= mask
-        output = x + perturbation
+        output = x + (perturbation * mask)
         output = torch.clamp(output, 0, 1)
         return output
 

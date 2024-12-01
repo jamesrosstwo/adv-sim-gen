@@ -18,7 +18,7 @@ class VAEFramePerturbation(Perturbation):
     LEARNING_RATE = 1e-5
     GRAD_ACCUM_STEPS = 32
     N_ITERS = 10
-    def __init__(self, state_path: Path, z_size: int = 32, perturbation_strength=0.02, *args, **kwargs):
+    def __init__(self, state_path: Path, z_size: int = 48, perturbation_strength=0.02, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._vae = ConvVAE(z_size=z_size)
         vae_state_dict = torch.load(str(state_path))
@@ -73,7 +73,7 @@ class VAELatentPerturbation(Perturbation):
     LEARNING_RATE = 1e-5
     GRAD_ACCUM_STEPS = 128
     N_ITERS = 100
-    def __init__(self, state_path: Path, z_size: int = 32, perturbation_strength=0.02, *args, **kwargs):
+    def __init__(self, state_path: Path, z_size: int = 48, perturbation_strength=0.02, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._vae = ConvVAE(z_size=z_size)
         vae_state_dict = torch.load(str(state_path))
