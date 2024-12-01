@@ -31,6 +31,12 @@ class Dashboard(Experiment):
         self._vae.load_state_dict(vae_state_dict, strict=True)
         self._vqvae = VQVAE().cuda()
         vqvae_state_dict = torch.load(str(self._vqvae_path))
+        self._vqvae.load_state_dict(vqvae_state_dict, strict=True)
+
+        self._reconstruction_methods = {
+            "VQ-VAE": self._vqvae,
+            "VAE": self._vae,
+        }
 
         self._gail = None
 
@@ -59,12 +65,15 @@ class Dashboard(Experiment):
                                                    outputs=env_state,
                                                    api_name="predict")
 
+                    self.policy_selection = gr.Dropdown(["PPO Pseudo-Expert", "GAIL"], value=0, label="Policy")
+
                 with gr.Column(scale=2, min_width=300):
                     with gr.Row():
-                        self.base_image = self._construct_gr_image(obs, "True Observation", height=800, width=800)
+                        self.base_image = self._construct_gr_image(obs, "True Observation", height=600, width=600)
                     self._construct_policy_button(env_state, self._ppo, "PPO")
 
             with gr.Row():
+                # perturbations
                 vae_recons, _mu, _logvar = self._vae(Perturbation.preproc_obs(obs))
                 vae_recons = Perturbation.postproc_obs(vae_recons)
 
@@ -73,6 +82,20 @@ class Dashboard(Experiment):
 
                 self.vae_recons_image = self._construct_gr_image(vae_recons, "VAE Reconstruction")
                 self.vqvae_recons_image = self._construct_gr_image(vqvae_recons, "VQ-VAE Reconstruction")
+
+            with gr.Row():
+                with gr.Column(scale=2, min_width=300):
+                    self.recons_selection = gr.Dropdown(["VAE", "VQ-VAE"], value=0, label="Reconstruction Method")
+
+                with gr.Column(scale=1, min_width=300):
+                    gen_button = gr.Button(f"Generate Perturbations")
+                    # gen_button.click(self._generate_perturbations, [env_state, gen_button], self.vae_recons_image)
+
+
+
+            with gr.Row():
+                # adversarial
+                pass
 
             self._frame_perturbation = VAEFramePerturbation(self._vae_path, z_size=self._vae_z_size).cuda()
             obs_p = self._frame_perturbation.postproc_obs(self.attack_frame(self._ppo, obs, self._frame_perturbation))
@@ -105,10 +128,14 @@ class Dashboard(Experiment):
         ]
 
     def _construct_policy_button(self, state: gr.State, policy, name: str):
-        act_button = gr.Button(f"Take {name} Actions")
+        act_button = gr.Button(f"Take Actions")
         on_click = functools.partial(self.next_frame, policy=policy.sb3_ppo)
         act_button.click(on_click, [state], state)
         return act_button
+
+
+    def _generate_perturbations(self, state: gr.State, model):
+        pass
 
     def _image_from_obs(self, obs, height: int = 400, width: int = 400):
         image = (obs[0]).astype(np.uint8)

@@ -84,7 +84,7 @@ class VectorQuantizer(nn.Module):
         return quantized, loss
 
 class VQVAE(nn.Module):
-    def __init__(self, num_embeddings=512, embedding_dim=256, commitment_cost=0.25):
+    def __init__(self, num_embeddings=64, embedding_dim=32, commitment_cost=0.25):
         super(VQVAE, self).__init__()
         self.encoder = Encoder()
         self.decoder = Decoder()
@@ -98,7 +98,7 @@ class VQVAE(nn.Module):
 
 if __name__ == "__main__":
     test_input = torch.zeros((100, 3, 96, 96))
-    model = VQVAE(num_embeddings=32, embedding_dim=16, commitment_cost=0.25)
+    model = VQVAE()
     output, vq_loss = model(test_input)
     print("Output shape:", output.shape)
     print("VQ Loss:", vq_loss.item())

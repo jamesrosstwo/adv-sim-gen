@@ -29,7 +29,7 @@ class TrainVQVAEExperiment(RolloutExperiment):
 
         self._vqvae = VQVAE().to(self.device)
         self.optimizer = optim.Adam(self._vqvae.parameters(), lr=learning_rate)
-        self.reconstruction_loss_fn = nn.MSELoss(reduction='sum')
+        self.reconstruction_loss_fn = nn.MSELoss(reduction='mean')
 
     def run(self):
         self._vqvae.train()
