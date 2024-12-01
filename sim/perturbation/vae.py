@@ -7,20 +7,23 @@ import torch
 from torch import nn, optim
 from tqdm import tqdm
 
-from models.vae import ConvVAE
+from models.vae import ConvVAE, Decoder
 from perturbation.perturbation import Perturbation
 import torch.nn.functional as F
+
+from util.frame import get_mask
 
 
 class VAEFramePerturbation(Perturbation):
     LEARNING_RATE = 1e-5
-    GRAD_ACCUM_STEPS = 64
+    GRAD_ACCUM_STEPS = 32
     N_ITERS = 10
     def __init__(self, state_path: Path, z_size: int = 32, perturbation_strength=0.02, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._vae = ConvVAE(z_size=z_size)
         vae_state_dict = torch.load(str(state_path))
         self._vae.load_state_dict(vae_state_dict, strict=True)
+        self._vae.decoder = Decoder(z_size)
         self._perturbation_strength = perturbation_strength
         self._vae.requires_grad_(False)
 
@@ -29,12 +32,16 @@ class VAEFramePerturbation(Perturbation):
         return self._vae
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        mask = self.get_mask(x)
+        mask = get_mask(x)
         latent = self._vae.reparameterize(*self._vae.encoder(x))
         perturbation = self._vae.decoder(latent)
-        delta = torch.nn.functional.normalize(perturbation.view(-1), dim=0).view_as(perturbation)
-        delta *= mask
-        return x + delta
+        pixel_norms = torch.norm(perturbation, dim=1, keepdim=True)  # Shape: [1, H, W]
+        max_pixel_norm = torch.max(pixel_norms)
+        perturbation = perturbation * (self._perturbation_strength / max_pixel_norm)
+        perturbation *= mask
+        output = x + perturbation
+        output = torch.clamp(output, 0, 1)  # Clamp to [0, 1]
+        return output
 
     def fit(self, policy: nn.Module, obs: np.ndarray) -> Generator[Tuple[Number, Number], None, None]:
         obs_torch = self.preproc_obs(obs)

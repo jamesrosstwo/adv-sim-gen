@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import torch
+from numpy.ma.core import get_mask
 from torch import nn
 
 from models.vae import ConvVAE
@@ -16,7 +17,7 @@ class ConvPerturbation(Perturbation):
         return self._vae
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        mask = self.get_mask(x)
+        mask = get_mask(x)
         latent = self._vae.encoder(x)
         normalized_delta = torch.nn.functional.normalize(self.latent_delta, dim=0)
         latent += normalized_delta * self._perturbation_strength

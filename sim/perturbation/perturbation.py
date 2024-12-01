@@ -33,15 +33,6 @@ class Perturbation(nn.Module, ABC):
         raise NotImplementedError()
 
 
-    def get_mask(self, obs: torch.Tensor) -> torch.Tensor:
-        """
-        Obtains a binary mask of editable pixels given an observation
-        :param obs: batch observation. Shape: [batch_size, 3, 96, 96]
-        :return: Binary mask of shape [batch_size, 96, 96]
-        """
-        return torch.ones_like(obs[:, 0, :, :]).bool()
-
-
     @abstractmethod
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pass
