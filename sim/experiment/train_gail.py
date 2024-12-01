@@ -4,13 +4,11 @@ from imitation.policies.serialize import load_policy
 from omegaconf import DictConfig
 from stable_baselines3 import PPO
 from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.ppo import CnnPolicy
 
-import os
 import torch
 
 from definitions import ROOT_PATH, SEED
-from experiment.experiment import Experiment
+from sim.experiment.experiment import Experiment
 from imitation.algorithms.adversarial.gail import GAIL
 from imitation.data import rollout
 from imitation.data import serialize
@@ -23,6 +21,7 @@ class TrainGAILExperiment(Experiment):
             self,
             # expert_checkpoint: str,
             n_timesteps: int = 1_000_000,
+            rollouts_path: str = None,
             *args,
             **kwargs
     ):
@@ -34,9 +33,10 @@ class TrainGAILExperiment(Experiment):
             env_name = "CarRacing-v2",
             venv = self._env,
         )
-        # checkpoint_path = str(ROOT_PATH / expert_checkpoint / "ppo_car_racing.zip")
         self._n_timesteps = n_timesteps
         self._rollouts_path = self._out_path / "expert_rollouts"
+        if rollouts_path is not None:
+            self._rollouts_path = ROOT_PATH / rollouts_path
 
 
     def run(self):

@@ -2,3 +2,4 @@ defaults:
   - environment: base
 
 name: "train_gail_from_ppo"
+rollouts_path: "out/evaluate_model/2024-11-30_13-04-41/expert_rollouts"

@@ -1,19 +1,26 @@
 import functools
+from typing import Type
 
 import gradio as gr
 import hydra
 import numpy as np
+import torch
+from PIL import Image
 from omegaconf import DictConfig
 from stable_baselines3 import PPO
 
 from definitions import ROOT_PATH
 from experiment.experiment import Experiment
+from models.ppo import PPOPolicy
+from perturbation.perturbation import Perturbation
+from perturbation.vae import VAELatentPerturbation, VAEFramePerturbation
 
 
 class Dashboard(Experiment):
-    def __init__(self, ppo_path: str, *args, **kwargs):
+    def __init__(self, ppo_path: str, vae_path: str, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._ppo = PPO.load(ROOT_PATH / ppo_path)
+        self._ppo = PPOPolicy(PPO.load(ROOT_PATH / ppo_path))
+        self._vae_path = ROOT_PATH / vae_path
         self._gail = None
 
         # Initialize the environment and reset it to get the initial observation
@@ -23,7 +30,6 @@ class Dashboard(Experiment):
         episode_reward = 0
         done = False
 
-
         with gr.Blocks() as demo:
             env_state = gr.State({
                 'obs': obs,
@@ -32,7 +38,15 @@ class Dashboard(Experiment):
                 'done': done,
             })
 
-            self.base_image = gr.Image(value=self._image_from_obs(obs), label="True Observation")
+            base_img = self._image_from_obs(obs)
+            self._latent_p = VAELatentPerturbation(self._vae_path).cuda()
+            latent_perturbed = self.attack_frame(self._ppo, obs, self._latent_p)
+            latent_p_img = self._image_from_obs(self._latent_p.postproc_obs(latent_perturbed))
+            # frame = self.attack_frame(self._ppo, obs, VAEFramePerturbation)
+
+
+            self.base_image = gr.Image(value=base_img, label="True Observation", height=400, width=400)
+            self.latent_p_image = gr.Image(value=latent_p_img, label="True Observation", height=400, width=400)
             self.timestep_output = gr.Number(value=timestep, label="Timestep")
             self.reward_output = gr.Number(value=episode_reward, label="Episode Reward")
 
@@ -47,29 +61,28 @@ class Dashboard(Experiment):
 
 
     def _on_state_change(self, state):
-        new_image = self._image_from_obs(state["obs"])
-        tmstp = state['timestep']
-        reward = state['episode_reward']
-
         return [
-            new_image,
-            tmstp,
-            reward,
+            self._image_from_obs(state["obs"]),
+            state['timestep'],
+            state['episode_reward'],
         ]
 
 
     def _construct_policy_button(self, state: gr.State, policy, name: str):
         act_button = gr.Button(f"Take {name} Actions")
-        on_click = functools.partial(self.next_frame, policy=policy, k=20)
+        on_click = functools.partial(self.next_frame, policy=policy.sb3_ppo, k=20)
         act_button.click(on_click, [state], state)
         return act_button
 
 
     def _image_from_obs(self, obs):
         image = (obs[0] * 255).astype(np.uint8)
-        # Swap channels from RGB to BGR or vice versa
         image = image[..., ::-1]
-        return image
+        pil_image = Image.fromarray(image)
+        pil_image_resized = pil_image.resize((400, 400), Image.Resampling.NEAREST)
+        image_resized = np.array(pil_image_resized)
+
+        return image_resized
 
     def next_frame(self, state, policy, k):
         done = False
@@ -94,14 +107,20 @@ class Dashboard(Experiment):
         state['done'] = done
         return state
 
+
+    def attack_frame(self, policy, obs, perturbation: Perturbation):
+        for i, loss in perturbation.fit(policy, obs):
+            print(i, loss)
+        return perturbation(perturbation.preproc_obs(obs))
+
+
     def run(self):
-        self._interface.launch()
+        pass # this is dumb
 
 
 @hydra.main(config_name="dashboard", config_path=str(ROOT_PATH / "config"))
 def main(cfg: DictConfig):
     dashboard = Dashboard(**cfg)
-    dashboard.run()
 
 
 if __name__ == "__main__":

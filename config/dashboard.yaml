@@ -3,3 +3,4 @@ defaults:
 name: "dashboard"
 
 ppo_path: "resources/ignaub-ppo-CarRacing-v2.zip"
+vae_path: "out/train_vae/2024-11-30_18-59-37/vae_model.pth"

@@ -19,14 +19,9 @@ class PPOPolicy(nn.Module):
     def __init__(self, ppo: PPO):
         super().__init__()
         self._sb3_ppo = ppo
-        self.extractor = self._sb3_ppo.policy.mlp_extractor
-        self.policy_net = self._sb3_ppo.policy.mlp_extractor.policy_net
-        self.action_net = self._sb3_ppo.policy.action_net
 
     def forward(self,x):
-        x = self.policy_net(x)
-        x = self.action_net(x)
-        return x
+        return self._sb3_ppo.policy(x)
 
     def save(self, path: Path):
         return self._sb3_ppo.save(path)

@@ -16,10 +16,10 @@ class TrainVAEExperiment(RolloutExperiment):
     def __init__(
             self,
             z_size: int = 32,
-            batch_size: int = 100,
+            batch_size: int = 256,
             learning_rate: float = 0.00007,
             kl_tolerance: float = 0.5,
-            num_epochs: int = 200,
+            num_epochs: int = 300,
             *args, **kwargs
     ):
         super().__init__(*args, **kwargs)

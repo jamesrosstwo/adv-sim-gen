@@ -20,7 +20,7 @@ class Encoder(nn.Module):
         h = F.relu(self.enc_conv2(h))
         h = F.relu(self.enc_conv3(h))
         h = F.relu(self.enc_conv4(h))
-        h = h.view(h.size(0), -1)  # Flatten
+        h = h.reshape(h.size(0), -1)  # Flatten
         mu = self.fc_mu(h)
         logvar = self.fc_logvar(h)
         return mu, logvar
