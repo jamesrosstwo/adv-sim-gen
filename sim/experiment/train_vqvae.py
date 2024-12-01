@@ -16,9 +16,9 @@ class TrainVQVAEExperiment(RolloutExperiment):
     def __init__(
             self,
             batch_size: int = 128,
-            learning_rate: float = 0.00007,
+            learning_rate: float = 0.00006,
             kl_tolerance: float = 0.5,
-            num_epochs: int = 50,
+            num_epochs: int = 128,
             *args, **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -27,7 +27,7 @@ class TrainVQVAEExperiment(RolloutExperiment):
         self.kl_tolerance = kl_tolerance
         self.num_epochs = num_epochs
 
-        self._vqvae = VQVAE().to(self.device)
+        self._vqvae = VQVAE(num_embeddings=64, embedding_dim=16).to(self.device)
         self.optimizer = optim.Adam(self._vqvae.parameters(), lr=learning_rate)
         self.reconstruction_loss_fn = nn.MSELoss(reduction='mean')
 
