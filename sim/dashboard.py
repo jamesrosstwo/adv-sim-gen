@@ -39,7 +39,7 @@ class Dashboard(Experiment):
             })
 
             base_img = self._image_from_obs(obs)
-            self._latent_p = VAELatentPerturbation(self._vae_path).cuda()
+            self._latent_p = VAEFramePerturbation(self._vae_path).cuda()
             latent_perturbed = self.attack_frame(self._ppo, obs, self._latent_p)
             latent_p_img = self._image_from_obs(self._latent_p.postproc_obs(latent_perturbed))
             # frame = self.attack_frame(self._ppo, obs, VAEFramePerturbation)
