@@ -95,17 +95,24 @@ class Dashboard(Experiment):
                 with gr.Tab("Perturbations"):
                     with gr.Row():
                         with gr.Column(scale=2, min_width=300):
-                            self.recons_selection = gr.Dropdown(["VQ-VAE", "VAE"], value=0,
+                            recons_selection = gr.Dropdown(["VQ-VAE", "VAE"], value=0,
                                                                 label="Reconstruction Method")
 
                         with gr.Column(scale=1, min_width=300):
-                            gen_button = gr.Button(f"Generate Perturbations", size="lg")
-                            # gen_button.click(self._generate_perturbations, [env_state, gen_button], self.vae_recons_image)
+                            @gr.render(inputs=[recons_selection, env_state])
+                            def discover_attack(recons_method, state):
+                                prog = gr.Progress()
+                                o = state["obs"]
+                                recons_method = self._reconstruction_methods[recons_method]
+                                # TODO: Complete this
+                                self._construct_gr_image(p.postproc_obs(perturbed), label="Discovered Attack")
 
             with gr.Tab("Adversarial Learning"):
                 with gr.Row():
                     keys = list(self._attack_methods.keys())
-                    attack_selection = gr.Dropdown(keys, value=keys[0])
+                    with gr.Column():
+                        attack_selection = gr.Dropdown(keys, value=keys[0], label="Attack Type")
+                        attack_strength = gr.Slider(0, 1)
 
                     @gr.render(inputs=[attack_selection, env_state])
                     def discover_attack(attack_type, state):
@@ -152,6 +159,7 @@ class Dashboard(Experiment):
         return Perturbation.postproc_obs(vqvae_recons)
 
     def _construct_gr_image(self, obs, label: str, height=400, width=400):
+        # TODO: Overlay the action here.
         im = self._image_from_obs(obs, height=height, width=width)
         return gr.Image(value=im, label=label, height=height, width=width)
 
@@ -170,9 +178,6 @@ class Dashboard(Experiment):
         on_click = functools.partial(self.next_frame, policy=policy.sb3_ppo)
         act_button.click(on_click, [state], state)
         return act_button
-
-    def _generate_perturbations(self, state: gr.State, model):
-        pass
 
     def _image_from_obs(self, obs, height: int = 400, width: int = 400):
         image = (obs[0]).astype(np.uint8)
