@@ -1,11 +1,12 @@
 import functools
+import math
 from typing import Type
 
 import gradio as gr
 import hydra
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageDraw
 from omegaconf import DictConfig
 from stable_baselines3 import PPO
 
@@ -17,6 +18,7 @@ from models.vqvae import VQVAE
 from perturbation.perturbation import Perturbation
 from perturbation.vae import VAEFramePerturbation, VAELatentPerturbation
 from perturbation.vqvae import VQVAEFramePerturbation, VQVAELatentPerturbation
+from util.action import gas, steering
 
 
 class Dashboard(Experiment):
@@ -34,23 +36,18 @@ class Dashboard(Experiment):
         vqvae_state_dict = torch.load(str(self._vqvae_path))
         self._vqvae.load_state_dict(vqvae_state_dict, strict=True)
 
-        self._reconstruction_methods = {
-            "VQ-VAE": self._vqvae_recons,
-            "VAE": self._vae_recons,
+        self._perturbation_methods = {
+            "VAE Frame Perturbation": VAEFramePerturbation,
+            "VAE Latent Perturbation": VAELatentPerturbation,
+            "VQ-VAE Frame Perturbation": VQVAEFramePerturbation,
+            "VQ-VAE Latent Perturbation": VQVAELatentPerturbation,
         }
 
-        self._attack_methods = {
-            "VQ-VAE Frame Attack": VQVAEFramePerturbation,
-            "VQ-VAE Latent Space Attack": VQVAELatentPerturbation,
-            "VAE Frame Attack": VAEFramePerturbation,
-            "VAE Latent Attack": VAELatentPerturbation
-        }
-
-        self._attack_state_paths = {
-            "VQ-VAE Frame Attack": self._vqvae_path,
-            "VQ-VAE Latent Space Attack": self._vqvae_path,
-            "VAE Frame Attack": self._vae_path,
-            "VAE Latent Attack": self._vae_path
+        self._perturbation_state_paths = {
+            "VAE Frame Perturbation": self._vae_path,
+            "VAE Latent Perturbation": self._vae_path,
+            "VQ-VAE Frame Perturbation": self._vqvae_path,
+            "VQ-VAE Latent Perturbation": self._vqvae_path,
         }
 
         self._gail = None
@@ -70,7 +67,7 @@ class Dashboard(Experiment):
                 'done': done,
                 'timestep_size': 20
             })
-            with gr.Tab("Tab A"):
+            with gr.Tab("Reconstructions"):
                 with gr.Row():
                     with gr.Column(scale=1, min_width=300):
                         self.timestep_output = gr.Number(value=timestep, label="Timestep")
@@ -81,46 +78,60 @@ class Dashboard(Experiment):
                                                        outputs=env_state,
                                                        api_name="predict")
 
-                        self.policy_selection = gr.Dropdown(["PPO Pseudo-Expert", "GAIL"], value=0, label="Policy")
+                        self.policy_selection = gr.Dropdown(["GAIL", "PPO Pseudo-Expert"], value=0, label="Policy")
                         self._construct_policy_button(env_state, self._ppo, "PPO")
 
                     with gr.Column(scale=2, min_width=300):
                         with gr.Row():
                             self.base_image = self._construct_gr_image(obs, "True Observation")
+                with gr.Accordion("Augmentation"):
+                    with gr.Tab("Reconstructions"):
+                        with gr.Row():
+                            self.vae_recons_image = self._construct_gr_image(self._vae_recons(obs), "VAE Reconstruction")
+                            self.vqvae_recons_image = self._construct_gr_image(self._vqvae_recons(obs), "VQ-VAE Reconstruction")
+                    with gr.Tab("Perturbations"):
+                        keys = list(self._perturbation_methods.keys())
+                        recons_selection = gr.Dropdown(keys, value=keys[0],
+                                                            label="Perturbation Method")
+                        n_example_slider = gr.Slider(4, 40, step=4, value=20, label="Number of Perturbations")
+                        strength_slider = gr.Slider(0, 1, step=0.01, value=0.02, label="Perturbation Strength")
 
-                with gr.Tab("VAE"):
-                    self.vae_recons_image = self._construct_gr_image(self._vae_recons(obs), "VAE Reconstruction")
-                with gr.Tab("VQ-VAE"):
-                    self.vqvae_recons_image = self._construct_gr_image(self._vqvae_recons(obs), "VQ-VAE Reconstruction")
-                with gr.Tab("Perturbations"):
-                    with gr.Row():
-                        with gr.Column(scale=2, min_width=300):
-                            recons_selection = gr.Dropdown(["VQ-VAE", "VAE"], value=0,
-                                                                label="Reconstruction Method")
 
-                        with gr.Column(scale=1, min_width=300):
-                            @gr.render(inputs=[recons_selection, env_state])
-                            def discover_attack(recons_method, state):
-                                prog = gr.Progress()
-                                o = state["obs"]
-                                recons_method = self._reconstruction_methods[recons_method]
-                                # TODO: Complete this
-                                self._construct_gr_image(p.postproc_obs(perturbed), label="Discovered Attack")
+                        @gr.render(inputs=[recons_selection, env_state, n_example_slider, strength_slider])
+                        def generate_perturbations(recons_method, state, n_examples, strength):
+                            prog = gr.Progress()
+                            o = state["obs"]
+                            p_method = self._perturbation_methods[recons_method]
+                            state_path = self._perturbation_state_paths[recons_method]
+                            p: Perturbation = p_method(state_path, perturbation_strength=strength).cuda()
+
+                            perturbation_img = []
+                            for i, perturbed in p.generate_perturbations(o, n_examples):
+                                perturbation_img.append(p.postproc_obs(perturbed))
+
+                            for i, p_im in enumerate(perturbation_img[::4]):
+                                idx = i * 4
+                                with gr.Row():
+                                    self._construct_gr_image(perturbation_img[idx], label=f"Perturbation {idx}")
+                                    self._construct_gr_image(perturbation_img[idx + 1], label=f"Perturbation {idx + 1}")
+                                    self._construct_gr_image(perturbation_img[idx + 2], label=f"Perturbation {idx + 2}")
+                                    self._construct_gr_image(perturbation_img[idx + 3], label=f"Perturbation {idx + 3}")
+
 
             with gr.Tab("Adversarial Learning"):
                 with gr.Row():
-                    keys = list(self._attack_methods.keys())
+                    keys = list(self._perturbation_methods.keys())
                     with gr.Column():
                         attack_selection = gr.Dropdown(keys, value=keys[0], label="Attack Type")
-                        attack_strength = gr.Slider(0, 1)
+                        attack_strength = gr.Slider(0, 10, label="Perturbation Strength")
 
-                    @gr.render(inputs=[attack_selection, env_state])
-                    def discover_attack(attack_type, state):
+                    @gr.render(inputs=[attack_selection, attack_strength, env_state])
+                    def discover_attack(attack_type, strength, state):
                         prog = gr.Progress()
                         o = state["obs"]
-                        attack_method = self._attack_methods[attack_type]
-                        state_path = self._attack_state_paths[attack_type]
-                        p: Perturbation = attack_method(state_path).cuda()
+                        attack_method = self._perturbation_methods[attack_type]
+                        state_path = self._perturbation_state_paths[attack_type]
+                        p: Perturbation = attack_method(state_path, perturbation_strength=strength).cuda()
                         for i, loss in prog.tqdm(p.fit(self._ppo, o)):
                             print(i, loss)
                         perturbed = p(p.preproc_obs(o))
@@ -158,10 +169,38 @@ class Dashboard(Experiment):
         vqvae_recons, _ = self._vqvae(Perturbation.preproc_obs(o))
         return Perturbation.postproc_obs(vqvae_recons)
 
+    def _overlay_steering_arrow(self, image, action, arrow_length_ratio=0.2):
+        """
+        Overlay an arrow representing steering on the image.
+
+        Parameters:
+            image (PIL.Image): The image to draw on.
+            steering (float): Steering value in the range [-1, 1].
+            arrow_length_ratio (float): The ratio of arrow length to the image width.
+        """
+        draw = ImageDraw.Draw(image)
+        width, height = image.size
+        arrow_length = int(width * arrow_length_ratio * gas(action))
+        arrow_length += width // 25
+        arrow_base = (width // 2, height - 100)
+
+        angle = steering(action) * 75  # -90 for -1, 90 for +1
+        angle_rad = math.radians(angle)
+
+        arrow_tip = (
+            int(arrow_base[0] + arrow_length * math.sin(angle_rad)),
+            int(arrow_base[1] - arrow_length * math.cos(angle_rad))
+        )
+
+        # Draw the arrow line
+        draw.line([arrow_base, arrow_tip], fill="magenta", width=5)
+
+        return image
+
     def _construct_gr_image(self, obs, label: str, height=400, width=400):
-        # TODO: Overlay the action here.
         im = self._image_from_obs(obs, height=height, width=width)
         return gr.Image(value=im, label=label, height=height, width=width)
+
 
     def _on_state_change(self, state):
         obs = state["obs"]
@@ -184,7 +223,10 @@ class Dashboard(Experiment):
         image = image[..., ::-1]
         pil_image = Image.fromarray(image)
         pil_image_resized = pil_image.resize((width, height), Image.Resampling.NEAREST)
-        image_resized = np.array(pil_image_resized)
+
+        action, _ = self._ppo.predict(obs, deterministic=False)
+        pil_image_with_arrow = self._overlay_steering_arrow(pil_image_resized, action)
+        image_resized = np.array(pil_image_with_arrow)
 
         return image_resized
 

@@ -1,2 +1,6 @@
+defaults:
+  - environment: base
+
 name: "train_vqvae"
 rollouts_path: "/home/james/Desktop/adv-sim-gen/out/evaluate_model/2024-11-30_13-04-41/expert_rollouts"
+ppo_path: "resources/ignaub-ppo-CarRacing-v2.zip"

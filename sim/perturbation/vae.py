@@ -12,6 +12,7 @@ from perturbation.perturbation import Perturbation
 import torch.nn.functional as F
 
 from util.frame import get_mask
+from util.param import randomize_weights
 
 
 class VAEFramePerturbation(Perturbation):
@@ -20,11 +21,18 @@ class VAEFramePerturbation(Perturbation):
     N_ITERS = 10
     def __init__(self, state_path: Path, z_size: int = 48, perturbation_strength=0.02, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._vae = ConvVAE(z_size=z_size)
-        vae_state_dict = torch.load(str(state_path))
-        self._vae.load_state_dict(vae_state_dict, strict=True)
-        self._vae.decoder = Decoder(z_size)
+        self._z_size = z_size
+        self._state_path = state_path
         self._perturbation_strength = perturbation_strength
+        self.reset_params()
+
+
+    def reset_params(self):
+        self._vae = ConvVAE(z_size=self._z_size).cuda()
+        vae_state_dict = torch.load(str(self._state_path))
+        self._vae.load_state_dict(vae_state_dict, strict=True)
+        self._vae.decoder = Decoder(self._z_size).cuda()
+        self._vae.decoder.apply(randomize_weights)
         self._vae.requires_grad_(False)
 
     @property
@@ -38,9 +46,7 @@ class VAEFramePerturbation(Perturbation):
         pixel_norms = torch.norm(perturbation, dim=1, keepdim=True)  # Shape: [1, H, W]
         max_pixel_norm = torch.max(pixel_norms)
         perturbation = perturbation * (self._perturbation_strength / max_pixel_norm)
-        perturbation *= mask
-        output = x + perturbation
-        output = torch.clamp(output, 0, 1)  # Clamp to [0, 1]
+        output = x + perturbation * mask
         return output
 
     def fit(self, policy: nn.Module, obs: np.ndarray) -> Generator[Tuple[Number, Number], None, None]:
@@ -71,16 +77,25 @@ class VAEFramePerturbation(Perturbation):
 
 class VAELatentPerturbation(Perturbation):
     LEARNING_RATE = 1e-5
-    GRAD_ACCUM_STEPS = 128
-    N_ITERS = 100
+    GRAD_ACCUM_STEPS = 64
+    N_ITERS = 10
+
     def __init__(self, state_path: Path, z_size: int = 48, perturbation_strength=0.02, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._vae = ConvVAE(z_size=z_size)
-        vae_state_dict = torch.load(str(state_path))
-        self._vae.load_state_dict(vae_state_dict, strict=True)
+        self._z_size = z_size
+        self._state_path = state_path
         self._perturbation_strength = perturbation_strength
-        self._vae.requires_grad_(False)
-        self.latent_delta = nn.Parameter(torch.zeros(z_size))
+        self.reset_params()
+
+
+    def reset_params(self):
+        self._vae = ConvVAE(z_size=self._z_size).cuda()
+        vae_state_dict = torch.load(str(self._state_path))
+        self._vae.load_state_dict(vae_state_dict, strict=True)
+        self._vae.decoder = Decoder(self._z_size).cuda()
+        self._vae.decoder.apply(randomize_weights)
+        self.latent_delta = nn.Parameter(torch.randn(self._z_size)).cuda()
+
 
     @property
     def vae(self):
@@ -89,9 +104,8 @@ class VAELatentPerturbation(Perturbation):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         mu, logvar = self._vae.encoder(x)
         latent = self._vae.reparameterize(mu, logvar)
-        normalized_delta = torch.nn.functional.normalize(self.latent_delta, dim=0)
-        latent += normalized_delta * self._perturbation_strength
-        return self._vae.decoder(latent)
+        normalized_delta = torch.nn.functional.normalize(self.latent_delta, dim=0) * self._perturbation_strength
+        return self._vae.decoder(latent + normalized_delta)
 
     def fit(self, policy: nn.Module, obs: np.ndarray) -> Generator[Tuple[Number, Number], None, None]:
         obs_torch = self.preproc_obs(obs)

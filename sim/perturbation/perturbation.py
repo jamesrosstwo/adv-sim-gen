@@ -4,9 +4,7 @@ from typing import Generator, Tuple
 
 import numpy as np
 import torch
-from torch import nn, optim
-import torch.nn.functional as F
-from tqdm import tqdm
+from torch import nn
 
 
 class Perturbation(nn.Module, ABC):
@@ -34,5 +32,17 @@ class Perturbation(nn.Module, ABC):
 
 
     @abstractmethod
+    def reset_params(self):
+        pass
+
+
+    @abstractmethod
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pass
+
+
+    def generate_perturbations(self, obs, n: int):
+        o = self.preproc_obs(obs).cuda()
+        for i in range(n):
+            self.reset_params()
+            yield i, self(o)
